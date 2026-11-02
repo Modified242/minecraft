@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MultiCraft - Voxel Sandbox Edition</title>
+  <meta name="description" content="A feature-complete 3D voxel sandbox game inspired by MultiCraft with procedural terrain, biomes, caves, Mese ores, survival vitals, mobs, workstations, and real-time multiplayer.">
+  <link rel="icon" type="image/png" href="assets/gui/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Three.js (r128 local with CDN fallback) -->
+  <script src="js/three.min.js"></script>
+  <script>
+    if (!window.THREE) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\\/script>');
+    }
+  </script>
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="game-container"></div>
+
+  <!-- Red Damage Flash Vignette -->
+  <div id="damage-overlay"></div>
+
+  <!-- Deep Blue Underwater Atmosphere Vignette -->
+  <div id="underwater-overlay"></div>
+
+  <!-- Centered Crosshair -->
+  <div id="crosshair"></div>
+
+  <!-- F3 Debug Screen -->
+  <div id="debug-overlay"></div>
+
+  <!-- Survival Vitals HUD (Armor Rating, Hearts, Drumsticks, Oxygen Bubbles, Experience Bar) -->
+  <div id="survival-hud">
+    <div id="armor-container" class="hud-bar"></div>
+    <div id="hearts-container" class="hud-bar"></div>
+    <div id="hunger-container" class="hud-bar"></div>
+  </div>
+  <div id="exp-bar-wrapper">
+    <div id="exp-level">0</div>
+    <div id="exp-bar">
+      <div id="exp-bar-fill"></div>
+    </div>
+  </div>
+  <div id="oxygen-container"></div>
+
+  <!-- Bottom Hotbar & Floating Block Name Toast -->
+  <div id="hotbar-wrapper">
+    <div id="block-label">Oak Wood</div>
+    <div id="hotbar"></div>
+  </div>
+
+  <!-- In-game Multiplayer Chat UI (T or /) -->
+  <div id="chat-container">
+    <div id="chat-messages"></div>
+    <input type="text" id="chat-input" placeholder="Press Enter to send chat or / for command..." autocomplete="off">
+  </div>
+
+  <!-- Full Inventory & Workstation Modal Screen (E) -->
+  <div id="inventory-modal" class="hidden">
+    <!-- Interactive Recipe Book Flyout Panel -->
+    <div id="recipe-book-panel" class="hidden">
+      <div class="recipe-book-header">
+        <span>Crafting Recipes</span>
+        <button class="close-btn" onclick="window.game.toggleRecipeBook()">✕</button>
+      </div>
+      <div id="recipe-book-list"></div>
+    </div>
+
+    <div class="inventory-card">
+      <div class="inv-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button id="recipe-book-btn" class="recipe-toggle-btn" title="Toggle Recipe Book" onclick="window.game.toggleRecipeBook()">📖</button>
+          <h2 id="workstation-title">Inventory & Crafting (2x2)</h2>
+        </div>
+        <button id="close-inv-btn" class="close-btn" onclick="window.game.closeWorkstation()">✕</button>
+      </div>
+
+      <!-- Upper Area: Armor Slots & Dynamic Workstation (Crafting Table 3x3 / Furnace / Chest / 2x2 Crafting) -->
+      <div id="inventory-upper-layout">
+        <div id="armor-slots-container">
+          <div class="armor-slot" id="armor-slot-helmet" data-armor-type="helmet" title="Helmet"></div>
+          <div class="armor-slot" id="armor-slot-chestplate" data-armor-type="chestplate" title="Chestplate"></div>
+          <div class="armor-slot" id="armor-slot-leggings" data-armor-type="leggings" title="Leggings"></div>
+          <div class="armor-slot" id="armor-slot-boots" data-armor-type="boots" title="Boots"></div>
+        </div>
+        <div id="crafting-grid-container"></div>
+      </div>
+
+      <!-- Lower Area: Player 27-Slot Backpack -->
+      <div class="inv-section-title">Backpack</div>
+      <div id="backpack-grid" class="inv-grid grid-9x3"></div>
+
+      <!-- Lower Area: Player 9-Slot Hotbar -->
+      <div class="inv-section-title" style="margin-top: 10px;">Hotbar</div>
+      <div id="hotbar-modal-grid" class="inv-grid grid-9x1"></div>
+
+      <div class="inv-hint-bar">
+        <span>L-Click: Pick / Place Stack</span> • 
+        <span>R-Click: Pick Half / Place 1</span> • 
+        <span>Shift-Click: Quick Move</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentic Dark Purple Floating Item Tooltip -->
+  <div id="minecraft-tooltip" class="hidden"></div>
+
+  <!-- Floating Cursor Item that follows mouse pointer -->
+  <div id="cursor-floating-item" class="hidden"></div>
+
+  <!-- Start / Pause Modal Screen -->
+  <div id="start-overlay">
+    <div class="modal-card">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 6px;">
+        <img src="assets/gui/logo.png" width="46" height="46" style="image-rendering: pixelated;" alt="MultiCraft">
+        <h1 class="game-title" style="margin: 0;">MULTICRAFT</h1>
+      </div>
+      <p class="game-subtitle">Open-World Voxel Sandbox with Real-Time Multiplayer</p>
+
+      <button id="play-btn" class="play-button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Click to Play
+      </button>
+
+      <div class="controls-grid">
+        <div class="ctrl-item">
+          <span class="key-badge">W A S D</span>
+          <span>Move around</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">Space</span>
+          <span>Jump / Swim Up</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">Shift</span>
+          <span>Sneak (Ledge Guard)</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">Ctrl</span>
+          <span>Sprint (FOV Zoom)</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">L-Click (Hold)</span>
+          <span>Mine Block / Attack Mob</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">R-Click</span>
+          <span>Place Block / Open / Eat</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">E</span>
+          <span>Open Full Inventory</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">F5</span>
+          <span>Toggle Camera Mode</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">T / /</span>
+          <span>Open Chat / Commands</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">F3</span>
+          <span>Toggle Debug Screen</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">F</span>
+          <span>Toggle Fly Mode</span>
+        </div>
+        <div class="ctrl-item">
+          <span class="key-badge">Esc</span>
+          <span>Pause / Release Cursor</span>
+        </div>
+      </div>
+
+      <p class="hint-footer">Press <strong>Esc</strong> to pause. Press <strong>E</strong> for Inventory & Crafting.</p>
+    </div>
+  </div>
+
+  <!-- Modular Scripts in Dependency Order -->
+  <script src="js/noise.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/mining.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/survival.js"></script>
+  <script src="js/mobs.js"></script>
+  <script src="js/hand.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
